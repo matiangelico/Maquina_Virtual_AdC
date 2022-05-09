@@ -43,22 +43,18 @@ public class ALU {
 		int b = valor2(memoria,reg,topB,vopB), copia = vopA, accesoA = copia>>4;
 		int maskAccRegistro = accesoRegistro(accesoA);
 		int nuevovalor,numreg;
-		if (topA == 1) { //Registro		
-			if (accesoA == 2) {//modifico valor registro (caso 3byte)		
-				numreg=vopA & maskf;
+		if (topA == 1) { //Registro
+			numreg=vopA & maskf;
+			if (accesoA == 2) //modifico valor registro (caso 3byte)		
 				nuevovalor=(reg.getReg(numreg)&~maskAccRegistro)| (b<<8 & maskAccRegistro);
-				reg.modificaReg(numreg,nuevovalor);
-			}
-			else {
-				numreg=vopA & maskf;
+			else 
 				nuevovalor=((reg.getReg(vopA & maskf)& ~maskAccRegistro))| (b & maskAccRegistro);
-				reg.modificaReg(numreg, nuevovalor);
-
-			}
+			reg.modificaReg(numreg, nuevovalor);
 		}
 		else{
 			memoria.modificaRAM(vopA + reg.getDS(),b);
 		}
+		
 	}
 
 	public void add(Memoria memoria, Registros reg, int topA, int topB, int vopA, int vopB){
@@ -125,15 +121,16 @@ public class ALU {
 				else 
 					valor = reg.getReg(vopA & maskf) & maskAccRegistro;
 				if (accesoA == 2) b = b<<8;
+				reg.setRegistro("AC",valor % b);
 				resultado = valor / b;
 				reg.modificaReg(vopA & maskf, ((reg.getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro)) & mask0);
 			}
 			else{
+				reg.setRegistro("AC",memoria.getValorRAM(vopA + reg.getDS()) % b);
 				resultado = memoria.getValorRAM(vopA + reg.getDS()) / b;
 				memoria.modificaRAM(vopA + reg.getDS(), resultado & mask0);
 			}
-			this.seteaCC(reg, resultado);
-			reg.setRegistro("AC",resultado % b);
+			this.seteaCC(reg, resultado);			
 		}
 	}
 	
@@ -200,8 +197,7 @@ public class ALU {
 			reg.modificaReg(vopA & maskf, ((reg.getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro)) & mask0);
 		}
 		else{
-			
-			resultado =memoria.getValorRAM(vopA + reg.getDS())+b;
+			resultado =memoria.getValorRAM(vopA + reg.getDS()) & b;
 			memoria.modificaRAM(vopA + reg.getDS(), resultado & mask0);
 		}
 		this.seteaCC(reg, resultado);
@@ -277,6 +273,7 @@ public class ALU {
 	
 	public void sys (Memoria memoria,Registros reg,int vopA) throws InterruptedException, IOException {
 		String cad=null;
+		char w;
 		boolean prompt = true, saltoLinea = true, caracter = false;
 		int a,comienzo, cantidad,salida,cont,cod,auxInt;
 		String aux;
@@ -316,36 +313,33 @@ public class ALU {
 		}
 		else { 			//escritura
 			if ((vopA & 0xF) == 0x2) {
-				if (reg.getAX()>>11 == 1)
+				if ((reg.getAX() & 0x00000800) == 0x00000800)
 					prompt = false;
-				if (((reg.getAX()>>8) & 0X00000003) == 1)
+				if (((reg.getAX()>>8) & 0X00000100) == 0X00000100)
 					saltoLinea = false;
-				if (reg.getAX()>>4 == 1){
-					cad = "%c ";
-					caracter = true;
-				}
-				else {
-					switch (reg.getAX() &  maskf ) {
-						case 8 : cad = "%X "; break;
-						case 4 : cad = "%o "; break;
-						case 1 : cad = "%d "; break;
-					}
-				}
-				for (a = comienzo;a<(comienzo+cantidad);a++) {		
+				for (a = comienzo;a<(comienzo+cantidad);a++) {
 					if (prompt)
-						System.out.format("[%04d]",a);
-					if (caracter) {
-						salida = memoria.getValorRAM(a& 0X000000FF);
-						if (((salida>=0) && (salida<=31)) || (salida ==127)) {
-							salida = 46;
-						}
+						System.out.format("[%04d] ",a);		
+					if (((reg.getAX() & 0x0000010) ==  0X00000010)){
+						salida = (char)memoria.getValorRAM(a +reg.getDS())& 0X000000FF;
+						if (((salida>=0) && (salida<=31)) || (salida ==127)) 
+							salida =(char)46;
+						else
+							salida=(char)memoria.getValorRAM(a + reg.getDS());
+						System.out.format("'%c ",salida);
 					}
-					else
-						salida=memoria.getValorRAM(a + reg.getDS());
-					System.out.format(cad,salida);
+					salida=memoria.getValorRAM(a + reg.getDS());
+					if (((reg.getAX()& 0x0000008) ==  0X00000008))
+						System.out.format("H%X ",salida);
+					if (((reg.getAX()& 0x0000004) ==  0X00000004))  
+						System.out.format("@%o ",salida);
+					if (((reg.getAX()& 0x0000001) ==  0X00000001)) 
+						System.out.format("#%d ",salida);;		
 					if (saltoLinea)
 						System.out.format("\n");
+				
 				}
+				
 			}
 			else {    					//breakpoint
 				if ((vopA & 0xF) == 0XF) {
@@ -373,8 +367,13 @@ public class ALU {
 							}
 						}
 					}
-					if (getParametroc() && (vopA >> 28) != 1) {           
-						new ProcessBuilder("cmd","/c","cls").inheritIO().start().waitFor();
+					if (getParametroc() && (vopA >> 28) != 1) {    
+						try{
+							new ProcessBuilder("cmd","/c","cls").inheritIO().start().waitFor();
+						}
+						catch (Exception e) {
+							
+						}
 					}
 					
 					if (getParametrod()) {
@@ -931,3 +930,4 @@ public void ejecutaInstruccion(int a, Memoria memoria, Registros registros) thro
 	}
 	
 }
+

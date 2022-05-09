@@ -33,7 +33,7 @@ public class Main {
 
 			for (i = 0; i < 6; i++) {					// lee el header
 				inst = entrada.readInt();
-				if (i == 1) {		// el 2do bloque tiene el tamaño del codigo 
+				if (i == 1) {		// el 2do bloque tiene el tamaï¿½o del codigo 
 					CS = inst;
 				}
 			}
@@ -48,7 +48,12 @@ public class Main {
 			entrada.close();
 			
 			if (ALU.getParametroc())
-				new ProcessBuilder("cmd","/c","cls").inheritIO().start().waitFor();
+				try {
+					new ProcessBuilder("cmd","/c","cls").inheritIO().start().waitFor();
+				}
+				catch (Exception e) {
+					
+				}
 
 			do {										// lee y ejecuta codigo desde la RAM
 				inst = maquinavirtual.getInstruccion();
@@ -58,6 +63,6 @@ public class Main {
 					maquinavirtual.sys();
 			} while ((0 <= maquinavirtual.getIP()) && (maquinavirtual.getIP() < maquinavirtual.getDS()));
 		} else 
-			System.out.println("El archivo .mv1 a leer no se encontró en la lista de parametros");
+			System.out.println("El archivo .mv1 a leer no se encontrï¿½ en la lista de parametros");
 	}
 }
