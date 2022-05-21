@@ -44,9 +44,11 @@ public class ALU {
 		int maskAccRegistro = accesoRegistro(accesoA);
 		int nuevovalor,numreg;
 		if (topA == 1) { //Registro
-			numreg=vopA & maskf;
-			if (accesoA == 2) //modifico valor registro (caso 3byte)		
+			numreg=vopA & maskf;		
+			if (accesoA == 2) { //modifico valor registro (caso 3byte)		
 				nuevovalor=(reg.getReg(numreg)&~maskAccRegistro)| (b<<8 & maskAccRegistro);
+				
+			}
 			else 
 				nuevovalor=((reg.getReg(vopA & maskf)& ~maskAccRegistro))| (b & maskAccRegistro);
 			reg.modificaReg(numreg, nuevovalor);
@@ -78,13 +80,15 @@ public class ALU {
 	public void sub(Memoria memoria, Registros reg, int topA, int topB, int vopA, int vopB){
 		int b = valor2(memoria,reg,topB,vopB),valor, copia = vopA,accesoA = copia>>4, maskAccRegistro = accesoRegistro(accesoA),resultado;
 		if (topA == 1) {  	//Registro
-			if (esNegativo(reg.getReg(vopA & maskf),maskAccRegistro)) 
+			if (esNegativo(reg.getReg(vopA & maskf),maskAccRegistro)) {
 				valor = reg.getReg(vopA & maskf) | ~maskAccRegistro;
-			else 
-				valor = reg.getReg(vopA & maskf) & maskAccRegistro;
+			}
+			else {
+				valor = reg.getReg(vopA & maskf) & maskAccRegistro;	
+			}
 			if (accesoA == 2) b = b<<8;
-			resultado = valor - b;
-			reg.modificaReg(vopA & maskf, (((reg.getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro)) & mask0));
+			resultado = (valor&maskAccRegistro)  - (b&maskAccRegistro);
+			reg.modificaReg(vopA & maskf,(reg.getReg(vopA & maskf) & ~maskAccRegistro) | (resultado & maskAccRegistro));
 		}
 		else{
 			resultado = memoria.getValorRAM(vopA + reg.getDS())- b;
@@ -334,7 +338,7 @@ public class ALU {
 					if (((reg.getAX()& 0x0000004) ==  0X00000004))  
 						System.out.format("@%o ",salida);
 					if (((reg.getAX()& 0x0000001) ==  0X00000001)) 
-						System.out.format("#%d ",salida);;		
+						System.out.format("%d ",salida);;		
 					if (saltoLinea)
 						System.out.format("\n");
 				
@@ -343,8 +347,49 @@ public class ALU {
 			}
 			else {    					//breakpoint
 				if ((vopA & 0xF) == 0XF) {
+					if (getParametrod()) {
+						int auxiliar,start,end,ip = reg.getReg(5);
+						if (ip>=5) {
+							start = ip - 5;
+							end = ip + 5;
+						}
+						else {
+							start = 0;
+							end = 9;
+						}
+						System.out.print("\nCODIGO: \n");
+						for (auxiliar = start;auxiliar<end;auxiliar++) {
+							if (auxiliar + 1 == ip)
+								System.out.print(">");
+							else
+								System.out.print(" ");
+							System.out.format ("[%04d]: %08X  %d: ",auxiliar,memoria.getValorRAM(auxiliar),(auxiliar-start+1));
+							muestraInstruccion(memoria.getValorRAM(auxiliar));
+							System.out.print("     ");
+							muestraOperandos(memoria.getValorRAM(auxiliar));
+							System.out.print("\n");
+						}
+						System.out.print("\nREGISTROS: \n");
+						reg.getReg(0);
+						System.out.format("DS  = %d |",reg.getReg(0));
+						//System.out.format("    = %d |",reg.getReg(1));
+						//System.out.format("    = %d |",reg.getReg(2));
+						//System.out.format("    = %d |\n",reg.getReg(3));
+						//System.out.format("    = d |",reg.getReg(4));
+						System.out.format("IP  = %d |",reg.getReg(5));
+						//System.out.format("    = %d |",reg.getReg(6));
+						//System.out.format("    = %d |\n",reg.getReg(7));
+						System.out.format("CC  = %d |",reg.getReg(8));
+						System.out.format("AC  = %d |",reg.getReg(9));
+						System.out.format("EAX = %d |",reg.getReg(10));
+						System.out.format("EBX = %d |\n",reg.getReg(11));
+						System.out.format("ECX = %d |",reg.getReg(12));
+						System.out.format("EDX = %d |",reg.getReg(13));
+						System.out.format("EEX = %d |",reg.getReg(14));
+						System.out.format("EFX = %d |\n",reg.getReg(15));
+					}
 					if (getParametrob()) {
-						System.out.format("[%04d] cmd: ",reg.getReg(5));
+						System.out.format("[%04d] cmd: ",reg.getReg(5)-1);
 						aux = leer.nextLine();
 						cod = codEntradaCmd(aux);
 						if ( cod == 1)
@@ -358,64 +403,25 @@ public class ALU {
 									
 									System.out.format("[%04d] %08X  %d \n",i,memoria.getValorRAM(i),memoria.getValorRAM(i));
 								}
-								else {  
-									String op1 = primeraDireccion(aux),op2 = segundaDireccion(aux);
-									int i = Integer.parseInt(op1),j = Integer.parseInt(op2);
-									for (int t=i;t<=j;t++) 
-										System.out.format("[%04d] %08X  %d \n",t,memoria.getValorRAM(t),memoria.getValorRAM(t));
+								else 
+									if (cod == 4) {  
+										String op1 = primeraDireccion(aux),op2 = segundaDireccion(aux);
+										int i = Integer.parseInt(op1),j = Integer.parseInt(op2);
+										for (int t=i;t<=j;t++) 
+											System.out.format("[%04d] %08X  %d \n",t,memoria.getValorRAM(t),memoria.getValorRAM(t));
+									}
+									else 
+										if (cod == 5){}
 								}
 							}
-						}
+						
 					}
-					if (getParametroc() && (vopA >> 28) != 1) {    
-						try{
-							new ProcessBuilder("cmd","/c","cls").inheritIO().start().waitFor();
-						}
-						catch (Exception e) {
+					if (getParametroc() && (vopA >> 28) != 1) {   
+						try {
+						new ProcessBuilder("cmd","/c","cls").inheritIO().start().waitFor();
+						}catch (Exception e) {
 							
 						}
-					}
-					
-					if (getParametrod()) {
-						int auxiliar,start,end,ip = reg.getReg(5);
-						if (ip>=5) {
-							start = ip - 5;
-							end = ip + 5;
-						}
-						else {
-							start = 0;
-							end = 9;
-						}
-						System.out.print("\nCODIGO: \n");
-						for (auxiliar = start;auxiliar<end;auxiliar++) {
-							if (auxiliar == ip)
-								System.out.print(">");
-							else
-								System.out.print(" ");
-							System.out.format ("[%04d]: %08X  %d: ",auxiliar,memoria.getValorRAM(auxiliar),(auxiliar-start+1));
-							muestraInstruccion(memoria.getValorRAM(auxiliar));
-							System.out.print("     ");
-							muestraOperandos(memoria.getValorRAM(auxiliar));
-							System.out.print("\n");
-						}
-						System.out.print("\nREGISTROS: \n");
-						reg.getReg(0);
-						System.out.format("DS  = %8X |",reg.getReg(0));
-						//System.out.format("    = %8X |",reg.getReg(1));
-						//System.out.format("    = %8X |",reg.getReg(2));
-						//System.out.format("    = %8X |\n",reg.getReg(3));
-						//System.out.format("    = %8X |",reg.getReg(4));
-						System.out.format("IP  = %8X |",reg.getReg(5));
-						//System.out.format("    = %8X |",reg.getReg(6));
-						//System.out.format("    = %8X |\n",reg.getReg(7));
-						System.out.format("CC  = %8X |",reg.getReg(8));
-						System.out.format("AC  = %8X |",reg.getReg(9));
-						System.out.format("EAX = %8X |",reg.getReg(10));
-						System.out.format("EBX = %8X |\n",reg.getReg(11));
-						System.out.format("ECX = %8X |",reg.getReg(12));
-						System.out.format("EDX = %8X |",reg.getReg(13));
-						System.out.format("EEX = %8X |",reg.getReg(14));
-						System.out.format("EFX = %8X |\n",reg.getReg(15));
 					}
 				}
 			}
@@ -682,6 +688,8 @@ public void ejecutaInstruccion(int a, Memoria memoria, Registros registros) thro
 			int mask1 = accesoRegistro(aRegistroB);
 			if (aRegistroB == 2) {
 				valor = (reg.getReg(vopB & maskf) & mask1)>>8;
+				mask1 = mask1>>8;
+				valor = valor &  0x000000FF;
 			}
 			else
 				valor = reg.getReg(vopB & maskf) & mask1;
@@ -722,7 +730,7 @@ public void ejecutaInstruccion(int a, Memoria memoria, Registros registros) thro
 		switch (mask) {
 		case 0xFFFFFFFF: aux = 31;break;
 		case 0x000000FF: aux = 7;break;
-		case 0x0000FF00: aux = 7;break;
+		case 0x0000FF00: aux = 15;break;
 		case 0x0000FFFF: aux = 15;break;
 		}
 		return aux; 
@@ -899,14 +907,17 @@ public void ejecutaInstruccion(int a, Memoria memoria, Registros registros) thro
 		else
 			if(cadena.compareTo("p")==0) 
 				cod = 2;
-			else{
-				w=0;
-				while (!espacio && w< cadena.length()) {
-					if (cadena.charAt(w)==' ') {
-						espacio = true;
+			else
+				if(cadena.compareTo(" ")==0)
+					cod = 5;
+				else{
+					w=0;
+					while (!espacio && w< cadena.length()) {
+						if (cadena.charAt(w)==' ') {
+							espacio = true;
+						}
+						w++;	
 					}
-					w++;	
-				}
 			if (espacio)
 				cod = 4;
 			else
@@ -930,4 +941,3 @@ public void ejecutaInstruccion(int a, Memoria memoria, Registros registros) thro
 	}
 	
 }
-

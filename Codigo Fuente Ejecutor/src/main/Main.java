@@ -6,6 +6,8 @@ import java.io.IOException;
 
 import paquete.ALU;
 import paquete.MaquinaVirtual;
+import paquete.Memoria;
+import paquete.Registros;
 
 public class Main {
 
@@ -13,7 +15,7 @@ public class Main {
 
 		int i, inst, CS = 0;
 		String binFilename = null;
-		
+	
 		MaquinaVirtual maquinavirtual = new MaquinaVirtual();
 		for (i = 0; i < args.length; i++) {
             if (args[i].endsWith("-b"))
@@ -64,5 +66,6 @@ public class Main {
 			} while ((0 <= maquinavirtual.getIP()) && (maquinavirtual.getIP() < maquinavirtual.getDS()));
 		} else 
 			System.out.println("El archivo .mv1 a leer no se encontr� en la lista de parametros");
+	
 	}
 }
