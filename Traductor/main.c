@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
     char line[256],asmFilename[25],binFilename[25], tablaReg[50][50];
     TReg tablaMnem[50],rotulos[100];
     char **parsed;
-    int nInst,instBin, cantOp, codOp, tipoOpA, tipoOpB, opA, opB,NtablaMnem,errorCompilacion = 0,NRot=0,errores[100],outputOn = 0;
+    int nInst,instBin, cantOp, codOp, tipoOpA, tipoOpB, opA, opB,NtablaMnem,errorCompilacion = 0,NRot=0,errores[100],outputOn = 1;
 
     leeParametros(argc,argv,asmFilename,&outputOn,binFilename); // Parametros pasados por consola
     cargaTablaMnemonicos(tablaMnem,&NtablaMnem);   // Crea tabla con codigos de operacion y mnemonico
@@ -42,8 +42,10 @@ int main(int argc, char *argv[]) {
     if ((arch=fopen(asmFilename,"r")) != NULL) {    // PRIMERA PASADA
         nInst = 0;
         while (fgets(line,256,arch) != NULL) {
-            parsed = parseline(line);
-            procesa(parsed,tablaMnem,NtablaMnem,rotulos,&NRot,&errorCompilacion,&nInst,errores);    // Guarda rotulos y busca errores
+            if (strcmp(line,"\n")) {
+                parsed = parseline(line);
+                procesa(parsed,tablaMnem,NtablaMnem,rotulos,&NRot,&errorCompilacion,&nInst,errores);    // Guarda rotulos y busca errores
+            }
         }
         freeline(parsed);
         fclose(arch);
@@ -54,19 +56,21 @@ int main(int argc, char *argv[]) {
         wrHeader(errorCompilacion,archBin,nInst);   // Escribe el header en .mv1
         nInst = 0;
         while (fgets(line,256,arch) != NULL) {
-            parsed = parseline(line);
-            if (!errores[nInst]) {  // Si la instrucción actual no tiene error (de mnemónico)
-                decodifica(parsed,nInst,tablaMnem,rotulos,&cantOp,&codOp,&tipoOpA,&tipoOpB,&opA,&opB,NtablaMnem,NRot,&errorCompilacion,errores,tablaReg);
-                trABin(cantOp,codOp,tipoOpA,tipoOpB,opA,opB,&instBin);
-            } else
-                printf("ERROR: Mnemonico %s inexistente o mal escrito\n",parsed[1]);
-            if (outputOn)
-                wrParsedIns(parsed,nInst,errores,codOp,instBin);   // Imprime
-            if (!errorCompilacion) {
-                preparaParaEscritura(&instBin);// Pasa de littleEndian a bigEndian
-                fwrite(&instBin,4,1,archBin);      // Escribe arch binario (si hubo error no)
+            if (strcmp(line,"\n")) {
+                parsed = parseline(line);
+                if (!errores[nInst]) {  // Si la instrucción actual no tiene error (de mnemónico)
+                    decodifica(parsed,nInst,tablaMnem,rotulos,&cantOp,&codOp,&tipoOpA,&tipoOpB,&opA,&opB,NtablaMnem,NRot,&errorCompilacion,errores,tablaReg);
+                    trABin(cantOp,codOp,tipoOpA,tipoOpB,opA,opB,&instBin);
+                } else
+                    printf("ERROR: Mnemonico %s inexistente o mal escrito\n",parsed[1]);
+                if (outputOn)
+                    wrParsedIns(parsed,nInst,errores,codOp,instBin);   // Imprime
+                if (!errorCompilacion) {
+                    preparaParaEscritura(&instBin);// Pasa de littleEndian a bigEndian
+                    fwrite(&instBin,4,1,archBin);      // Escribe arch binario (si hubo error no)
+                }
+                nInst++;
             }
-            nInst++;
         }
         freeline(parsed);
         fclose(arch);
@@ -87,7 +91,7 @@ void leeParametros(int argc,char *argv[],char asmFilename[],int *outputOn,char b
     char *extFile;
     for (i=1;i<argc;i++)
         if (!strcmp(argv[i],"-o"))
-            *outputOn = 1;
+            *outputOn = 0;
         else {
             extFile = argv[i] + strlen(argv[i]) - 4;
             if (!strcmp(extFile,".asm"))

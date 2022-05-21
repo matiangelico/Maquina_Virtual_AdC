@@ -57,3 +57,19 @@
 
 1648845874 c:\users\santi\documents\github\maquina_virtual_adc\traductor\parser.h
 
+1649686138 source:c:\users\usuario\documents\github\maquina_virtual_adc\traductor\parser.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<unistd.h>
+	"parser.h"
+
+1649686139 c:\users\usuario\documents\github\maquina_virtual_adc\traductor\parser.h
+
+1652547324 source:c:\users\usuario\documents\github\maquina_virtual_adc\traductor\main.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<math.h>
+	"parser.h"
+
