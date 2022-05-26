@@ -1,11 +1,17 @@
 package paquete;
 
 public class Memoria {
-
-
-	private int[] memoria = new int[4096]; //cada columna tendrá 8 bits (el int puede almacenarlos)
 	
-	public Memoria() {
+	public static Memoria instancia = null;
+	
+	public int[] memoria = new int[8192]; //cada columna tendrï¿½ 8 bits (el int puede almacenarlos)
+	
+	private Memoria() {}
+	
+	public static Memoria getInstancia() {
+		if (instancia == null)
+			instancia = new Memoria();
+		return instancia;
 	}
 	
 	public void cargainstruccion(int instruccion,int i) {

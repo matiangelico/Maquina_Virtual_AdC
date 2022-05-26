@@ -38,603 +38,917 @@ public class ALU {
         parametrod=paramD;
     }
 		
-	public void mov(Memoria memoria, Registros reg, int topA, int topB, int vopA, int vopB){ //parametros en decimal
+	public void mov(int topA, int topB, int vopA, int vopB){ //parametros en decimal
 
-		int b = valor2(memoria,reg,topB,vopB), copia = vopA, accesoA = copia>>4;
+		int b = valor2(topB,vopB), copia = vopA, accesoA = copia>>4;
 		int maskAccRegistro = accesoRegistro(accesoA);
 		int nuevovalor,numreg;
 		if (topA == 1) { //Registro
 			numreg=vopA & maskf;		
 			if (accesoA == 2) { //modifico valor registro (caso 3byte)		
-				nuevovalor=(reg.getReg(numreg)&~maskAccRegistro)| (b<<8 & maskAccRegistro);
-				
+				nuevovalor=(Registros.getInstancia().getReg(numreg)&~maskAccRegistro)| (b<<8 & maskAccRegistro);		
 			}
 			else 
-				nuevovalor=((reg.getReg(vopA & maskf)& ~maskAccRegistro))| (b & maskAccRegistro);
-			reg.modificaReg(numreg, nuevovalor);
+				nuevovalor=((Registros.getInstancia().getReg(vopA & maskf)& ~maskAccRegistro))| (b & maskAccRegistro);
+			Registros.getInstancia().modificaReg(numreg, nuevovalor);
 		}
 		else{
-			memoria.modificaRAM(vopA + reg.getDS(),b);
+			if (topA == 2)          // Directo 
+				Memoria.getInstancia().modificaRAM(vopA + Registros.getInstancia().getDSLow(),b);
+			else
+				if (topA == 3) 					//Indirecto
+					Memoria.getInstancia().modificaRAM(validarSegmento(vopA),b);
 		}
-		
 	}
 
-	public void add(Memoria memoria, Registros reg, int topA, int topB, int vopA, int vopB){
-		int b = valor2(memoria,reg,topB,vopB),valor, copia = vopA, accesoA = copia>>4, maskAccRegistro = accesoRegistro(accesoA),resultado;
+	public void add(int topA, int topB, int vopA, int vopB){
+		int b = valor2(topB,vopB),valor, copia = vopA, accesoA = copia>>4, maskAccRegistro = accesoRegistro(accesoA),resultado;
 		if (topA == 1) {  	//Registro
-			if (esNegativo(reg.getReg(vopA & maskf),maskAccRegistro)) 
-				valor = reg.getReg(vopA & maskf)| ~maskAccRegistro;
+			if (esNegativo(Registros.getInstancia().getReg(vopA & maskf),maskAccRegistro)) 
+				valor = Registros.getInstancia().getReg(vopA & maskf)| ~maskAccRegistro;
 			else 
-				valor = reg.getReg(vopA & maskf) & maskAccRegistro;
+				valor = Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro;
 			if (accesoA == 2) b = b<<8;
 			resultado = valor + b;
-			reg.modificaReg(vopA & maskf,(((reg.getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro)) & mask0));
+			Registros.getInstancia().modificaReg(vopA & maskf,(((Registros.getInstancia().getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro)) & mask0));
 		}
-		else{
-			resultado = memoria.getValorRAM(vopA + reg.getDS()) + b;
-			memoria.modificaRAM(vopA + reg.getDS(),resultado & mask0);
-		}
-		this.seteaCC(reg, resultado);
+		else
+			if (topA == 3) {					//Indirecto
+				resultado = Memoria.getInstancia().getValorRAM(validarSegmento(vopA)) + b;
+				Memoria.getInstancia().modificaRAM(validarSegmento(vopA),resultado & mask0);
+			}
+			else{
+				resultado = Memoria.getInstancia().getValorRAM(vopA + Registros.getInstancia().getDSLow()) + b;
+				Memoria.getInstancia().modificaRAM(vopA + Registros.getInstancia().getDSLow(),resultado & mask0);
+			}
+		this.seteaCC(resultado);
 	}
 	
-	public void sub(Memoria memoria, Registros reg, int topA, int topB, int vopA, int vopB){
-		int b = valor2(memoria,reg,topB,vopB),valor, copia = vopA,accesoA = copia>>4, maskAccRegistro = accesoRegistro(accesoA),resultado;
+	public void sub(int topA, int topB, int vopA, int vopB){
+		int b = valor2(topB,vopB),valor, copia = vopA,accesoA = copia>>4, maskAccRegistro = accesoRegistro(accesoA),resultado;
 		if (topA == 1) {  	//Registro
-			if (esNegativo(reg.getReg(vopA & maskf),maskAccRegistro)) {
-				valor = reg.getReg(vopA & maskf) | ~maskAccRegistro;
+			if (esNegativo(Registros.getInstancia().getReg(vopA & maskf),maskAccRegistro)) {
+				valor = Registros.getInstancia().getReg(vopA & maskf) | ~maskAccRegistro;
 			}
 			else {
-				valor = reg.getReg(vopA & maskf) & maskAccRegistro;	
+				valor = Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro;	
 			}
 			if (accesoA == 2) b = b<<8;
 			resultado = (valor&maskAccRegistro)  - (b&maskAccRegistro);
-			reg.modificaReg(vopA & maskf,(reg.getReg(vopA & maskf) & ~maskAccRegistro) | (resultado & maskAccRegistro));
+			Registros.getInstancia().modificaReg(vopA & maskf,(Registros.getInstancia().getReg(vopA & maskf) & ~maskAccRegistro) | (resultado & maskAccRegistro));
 		}
-		else{
-			resultado = memoria.getValorRAM(vopA + reg.getDS())- b;
-			memoria.modificaRAM(vopA + reg.getDS(), resultado & mask0);
-		}
-		this.seteaCC(reg, resultado);
-	}
-	
-	public void mul(Memoria memoria, Registros reg, int topA, int topB, int vopA, int vopB){
-		int b = valor2(memoria,reg,topB,vopB),valor, copia = vopA,accesoA = copia>>4, maskAccRegistro = accesoRegistro(accesoA),resultado;
-		if (topA == 1) {  	//Registro
-			if (esNegativo(reg.getReg(vopA & maskf),maskAccRegistro)) 
-				valor = reg.getReg(vopA & maskf) | ~maskAccRegistro;
-			else 
-				valor = reg.getReg(vopA & maskf) & maskAccRegistro;
-			if (accesoA == 2) b = b<<8;
-			resultado = valor * b;
-			reg.modificaReg(vopA & maskf, ((reg.getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro)) & mask0);
-
-		}
-		else{
-			resultado = memoria.getValorRAM(vopA + reg.getDS()) * b;
-			memoria.modificaRAM(vopA + reg.getDS(), resultado & mask0);
-		}
-		this.seteaCC(reg, resultado);
-	}
-	
-	public void div(Memoria memoria, Registros reg, int topA, int topB, int vopA, int vopB){
-		int b = valor2(memoria,reg,topB,vopB),valor, copia = vopA,accesoA = copia>>4, maskAccRegistro = accesoRegistro(accesoA),resultado;
-		if (b!=0) {	
-			if (topA == 1) {  	//Registro
-				if (esNegativo(reg.getReg(vopA & maskf),maskAccRegistro)) 
-					valor = reg.getReg(vopA & maskf) | ~maskAccRegistro;
-				else 
-					valor = reg.getReg(vopA & maskf) & maskAccRegistro;
-				if (accesoA == 2) b = b<<8;
-				reg.setRegistro("AC",valor % b);
-				resultado = valor / b;
-				reg.modificaReg(vopA & maskf, ((reg.getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro)) & mask0);
+		else
+			if (topA == 3) {					//Indirecto
+				resultado = Memoria.getInstancia().getValorRAM(validarSegmento(vopA)) - b;
+				Memoria.getInstancia().modificaRAM(validarSegmento(vopA),resultado & mask0);
 			}
 			else{
-				reg.setRegistro("AC",memoria.getValorRAM(vopA + reg.getDS()) % b);
-				resultado = memoria.getValorRAM(vopA + reg.getDS()) / b;
-				memoria.modificaRAM(vopA + reg.getDS(), resultado & mask0);
+				resultado = Memoria.getInstancia().getValorRAM(vopA + Registros.getInstancia().getDSLow())- b;
+				Memoria.getInstancia().modificaRAM(vopA + Registros.getInstancia().getDSLow(), resultado & mask0);
 			}
-			this.seteaCC(reg, resultado);			
+		this.seteaCC(resultado);
+	}
+	
+	public void mul(int topA, int topB, int vopA, int vopB){
+		int b = valor2(topB,vopB),valor, copia = vopA,accesoA = copia>>4, maskAccRegistro = accesoRegistro(accesoA),resultado;
+		if (topA == 1) {  	//Registro
+			if (esNegativo(Registros.getInstancia().getReg(vopA & maskf),maskAccRegistro)) 
+				valor = Registros.getInstancia().getReg(vopA & maskf) | ~maskAccRegistro;
+			else 
+				valor = Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro;
+			if (accesoA == 2) b = b<<8;
+			resultado = valor * b;
+			Registros.getInstancia().modificaReg(vopA & maskf, ((Registros.getInstancia().getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro)) & mask0);
+
+		}
+		else
+			if (topA == 3) {					//Indirecto
+				resultado = Memoria.getInstancia().getValorRAM(validarSegmento(vopA)) * b;
+				Memoria.getInstancia().modificaRAM(validarSegmento(vopA),resultado & mask0);
+			}
+			else{
+				resultado = Memoria.getInstancia().getValorRAM(vopA + Registros.getInstancia().getDSLow()) * b;
+				Memoria.getInstancia().modificaRAM(vopA + Registros.getInstancia().getDSLow(), resultado & mask0);
+			}
+		this.seteaCC(resultado);
+	}
+	
+	public void div(int topA, int topB, int vopA, int vopB){
+		int b = valor2(topB,vopB),valor, copia = vopA,accesoA = copia>>4, maskAccRegistro = accesoRegistro(accesoA),resultado;
+		if (b!=0) {	
+			if (topA == 1) {  	//Registro
+				if (esNegativo(Registros.getInstancia().getReg(vopA & maskf),maskAccRegistro)) 
+					valor = Registros.getInstancia().getReg(vopA & maskf) | ~maskAccRegistro;
+				else 
+					valor = Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro;
+				if (accesoA == 2) b = b<<8;
+				Registros.getInstancia().setRegistro("AC",valor % b);
+				resultado = valor / b;
+				Registros.getInstancia().modificaReg(vopA & maskf, ((Registros.getInstancia().getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro)) & mask0);
+			}
+			else
+				if (topA == 3) {					//Indirecto
+					Registros.getInstancia().setRegistro("AC",Memoria.getInstancia().getValorRAM(validarSegmento(vopA)) % b);
+					resultado = Memoria.getInstancia().getValorRAM(validarSegmento(vopA)) / b;
+					Memoria.getInstancia().modificaRAM(validarSegmento(vopA),resultado & mask0);
+				}
+				else{
+					Registros.getInstancia().setRegistro("AC",Memoria.getInstancia().getValorRAM(vopA + Registros.getInstancia().getDSLow()) % b);
+					resultado = Memoria.getInstancia().getValorRAM(vopA + Registros.getInstancia().getDSLow()) / b;
+					Memoria.getInstancia().modificaRAM(vopA + Registros.getInstancia().getDSLow(), resultado & mask0);
+				}
+			this.seteaCC(resultado);			
 		}
 	}
 	
 
-	public void swap(Memoria memoria, Registros reg, int topA, int topB, int vopA, int vopB){
+	public void swap(int topA, int topB, int vopA, int vopB){
 		int copiaA = vopA,copiaB = vopB,accesoA = copiaA>>4, maskAccRegistroA = accesoRegistro(accesoA),aux,accesoB = copiaB>>4,maskAccRegistroB = accesoRegistro(accesoB);
 		if (topA == 1) {  	//Registro
 				if (topB == 1){
-					aux= (reg.getReg(vopA & maskf) & maskAccRegistroA);
+					aux= (Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistroA);
 					if (accesoB == 2)
-						reg.modificaReg(vopA & maskf, ((reg.getReg(vopB & maskf) & maskAccRegistroB)>>8 & maskAccRegistroA));
+						Registros.getInstancia().modificaReg(vopA & maskf, ((Registros.getInstancia().getReg(vopB & maskf) & maskAccRegistroB)>>8 & maskAccRegistroA));
 					else {
-						reg.modificaReg(vopA & maskf, (reg.getReg(vopB & maskf) & maskAccRegistroB) & maskAccRegistroA);
-						reg.modificaReg(vopB & maskf, aux & maskAccRegistroB);
+						Registros.getInstancia().modificaReg(vopA & maskf, (Registros.getInstancia().getReg(vopB & maskf) & maskAccRegistroB) & maskAccRegistroA);
+						Registros.getInstancia().modificaReg(vopB & maskf, aux & maskAccRegistroB);
 					}
-
+				}
+				else
+					if (topB == 3) {					//Indirecto
+						aux = Memoria.getInstancia().getValorRAM(validarSegmento(vopB));
+						Memoria.getInstancia().modificaRAM(validarSegmento(vopB),Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistroA);
+						Registros.getInstancia().modificaReg(vopA & maskf, aux);
+					}
+					else {
+						aux= Memoria.getInstancia().getValorRAM(vopB + Registros.getInstancia().getDSLow());
+						Memoria.getInstancia().modificaRAM(vopB + Registros.getInstancia().getDSLow(), Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistroA);
+						Registros.getInstancia().modificaReg(vopA & maskf, aux);
+					}
+			}
+			else
+				if (topA == 2){
+					if (topB == 1){	
+						aux=Registros.getInstancia().getReg(vopB & maskf) & maskAccRegistroB;
+						Registros.getInstancia().modificaReg(vopB & maskf, Memoria.getInstancia().getValorRAM(vopA + Registros.getInstancia().getDSLow()));
+						Memoria.getInstancia().modificaRAM( vopA + Registros.getInstancia().getDSLow(),aux);
+					}
+					else {
+						if (topB == 3) {					//Indirecto
+							aux = Memoria.getInstancia().getValorRAM(validarSegmento(vopB));
+							Memoria.getInstancia().modificaRAM(validarSegmento(vopB),Memoria.getInstancia().getValorRAM(vopA + Registros.getInstancia().getDSLow()));
+							Memoria.getInstancia().modificaRAM(Memoria.getInstancia().getValorRAM(vopA + Registros.getInstancia().getDSLow()),aux);
+						}
+						else {
+							aux=Memoria.getInstancia().getValorRAM(vopB + Registros.getInstancia().getDSLow());
+							Memoria.getInstancia().modificaRAM(vopB+ Registros.getInstancia().getDSLow(), Memoria.getInstancia().getValorRAM(vopA+ Registros.getInstancia().getDSLow())); 
+							Memoria.getInstancia().modificaRAM(vopA+ Registros.getInstancia().getDSLow(), aux);
+		
+						}
+					}
 				}
 				else {
-					aux= memoria.getValorRAM(vopB + reg.getDS());
-					memoria.modificaRAM(vopB + reg.getDS(), reg.getReg(vopA & maskf) & maskAccRegistroA);
-					reg.modificaReg(vopA & maskf, aux);
+					if (topB == 1){	
+						aux=Registros.getInstancia().getReg(vopB & maskf) & maskAccRegistroB;
+						Registros.getInstancia().modificaReg(vopB & maskf, Memoria.getInstancia().getValorRAM(validarSegmento(vopA)));
+						Memoria.getInstancia().modificaRAM( validarSegmento(vopA),aux);
+					}
+					else {
+						if (topB == 3) {					//Indirecto
+							aux = Memoria.getInstancia().getValorRAM(validarSegmento(vopA));
+							Memoria.getInstancia().modificaRAM(validarSegmento(vopA),Memoria.getInstancia().getValorRAM(validarSegmento(vopB)));
+							Memoria.getInstancia().modificaRAM(validarSegmento(vopB),aux);
+						}
+						else {
+							aux=Memoria.getInstancia().getValorRAM(vopB + Registros.getInstancia().getDSLow());
+							Memoria.getInstancia().modificaRAM(vopB+ Registros.getInstancia().getDSLow(), Memoria.getInstancia().getValorRAM(validarSegmento(vopA))); 
+							Memoria.getInstancia().modificaRAM(validarSegmento(vopA), aux);
+		
+						}
+					}
+		
 				}
-			}
-			else{
-				if (topB == 1){	
-					aux=reg.getReg(vopB & maskf) & maskAccRegistroB;
-					reg.modificaReg(vopB & maskf, memoria.getValorRAM(vopA + reg.getDS()));
-					memoria.modificaRAM( vopA + reg.getDS(),aux);
-				}
-				else {
-					aux=memoria.getValorRAM(vopB + reg.getDS());
-					memoria.modificaRAM(vopB+ reg.getDS(), memoria.getValorRAM(vopA+ reg.getDS())); 
-					memoria.modificaRAM(vopA+ reg.getDS(), aux);
-
-				}
-			}
 	}
 	
-	public void cmp(Memoria memoria, Registros reg, int topA, int topB, int vopA, int vopB){
-		int b = valor2(memoria,reg,topB,vopB),valor, copia = vopA, maskAccRegistro = accesoRegistro(copia>>4),resultado;
+	public void cmp(int topA, int topB, int vopA, int vopB){
+		int b = valor2(topB,vopB),valor, copia = vopA, maskAccRegistro = accesoRegistro(copia>>4),resultado;
 		if (topA == 1) {  	//Registro
-			if (esNegativo(reg.getReg(vopA & maskf),maskAccRegistro)) 
-				valor = reg.getReg(vopA & maskf) | ~maskAccRegistro;
+			if (esNegativo(Registros.getInstancia().getReg(vopA & maskf),maskAccRegistro)) 
+				valor = Registros.getInstancia().getReg(vopA & maskf) | ~maskAccRegistro;
 			else 
-				valor = reg.getReg(vopA & maskf) & maskAccRegistro;
+				valor = Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro;
 			resultado = valor - b;
 		}
 		else
 			if (topA == 2)	// directo
-				resultado = memoria.getValorRAM(vopA + reg.getDS()) - b;
+				resultado = Memoria.getInstancia().getValorRAM(vopA + Registros.getInstancia().getDSLow()) - b;
 			else
-				resultado = vopA - b;
-		this.seteaCC(reg, resultado);
+				if (topA == 3) 					//Indirecto
+					resultado = Memoria.getInstancia().getValorRAM(validarSegmento(vopA)) - b;
+				else
+					resultado = vopA - b;
+		this.seteaCC(resultado);
 	}
 	
-	public void and(Memoria memoria, Registros reg, int topA, int topB, int vopA, int vopB){
-		int b = valor2(memoria,reg,topB,vopB),valor, copia = vopA, maskAccRegistro = accesoRegistro(copia>>4),resultado;
+	public void and(int topA, int topB, int vopA, int vopB){
+		int b = valor2(topB,vopB),valor, copia = vopA, maskAccRegistro = accesoRegistro(copia>>4),resultado;
 		if (topA == 1) {  	//Registro
-			if (esNegativo(reg.getReg(vopA & maskf),maskAccRegistro)) 
-				valor = reg.getReg(vopA & maskf) | ~maskAccRegistro;
+			if (esNegativo(Registros.getInstancia().getReg(vopA & maskf),maskAccRegistro)) 
+				valor = Registros.getInstancia().getReg(vopA & maskf) | ~maskAccRegistro;
 			else 
-				valor = reg.getReg(vopA & maskf) & maskAccRegistro;
+				valor = Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro;
 			resultado = valor & b;
-			reg.modificaReg(vopA & maskf, ((reg.getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro)) & mask0);
+			Registros.getInstancia().modificaReg(vopA & maskf, ((Registros.getInstancia().getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro)) & mask0);
 		}
-		else{
-			resultado =memoria.getValorRAM(vopA + reg.getDS()) & b;
-			memoria.modificaRAM(vopA + reg.getDS(), resultado & mask0);
-		}
-		this.seteaCC(reg, resultado);
+		else
+			if (topA == 3) {					//Indirecto
+				resultado = Memoria.getInstancia().getValorRAM(validarSegmento(vopA)) & b;
+				Memoria.getInstancia().modificaRAM(validarSegmento(vopA),resultado & mask0);
+			}
+			else{
+				resultado =Memoria.getInstancia().getValorRAM(vopA + Registros.getInstancia().getDSLow()) & b;
+				Memoria.getInstancia().modificaRAM(vopA + Registros.getInstancia().getDS(), resultado & mask0);
+			}
+		this.seteaCC(resultado);
 	}
 	
-	public void or(Memoria memoria, Registros reg, int topA, int topB, int vopA, int vopB){
-		int b = valor2(memoria,reg,topB,vopB),valor, copia = vopA, maskAccRegistro = accesoRegistro(copia>>4),resultado;
+	public void or(int topA, int topB, int vopA, int vopB){
+		int b = valor2(topB,vopB),valor, copia = vopA, maskAccRegistro = accesoRegistro(copia>>4),resultado;
 		if (topA == 1) {  	//Registro
-			if (esNegativo(reg.getReg(vopA & maskf),maskAccRegistro)) 
-				valor = reg.getReg(vopA & maskf) | ~maskAccRegistro;
+			if (esNegativo(Registros.getInstancia().getReg(vopA & maskf),maskAccRegistro)) 
+				valor = Registros.getInstancia().getReg(vopA & maskf) | ~maskAccRegistro;
 			else 
-				valor = reg.getReg(vopA & maskf) & maskAccRegistro;
+				valor = Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro;
 			resultado = valor | b;
-			reg.modificaReg(vopA & maskf, ((reg.getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro)) & mask0);
+			Registros.getInstancia().modificaReg(vopA & maskf, ((Registros.getInstancia().getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro)) & mask0);
 		}
-		else{
-			resultado=memoria.getValorRAM(vopA + reg.getDS())|b;
-			memoria.modificaRAM(vopA + reg.getDS(), resultado & mask0);
-		}
-		this.seteaCC(reg, resultado);
+		else
+			if (topA == 3) {					//Indirecto
+				resultado = Memoria.getInstancia().getValorRAM(validarSegmento(vopA)) | b;
+				Memoria.getInstancia().modificaRAM(validarSegmento(vopA),resultado & mask0);
+			}
+			else{
+				resultado=Memoria.getInstancia().getValorRAM(vopA + Registros.getInstancia().getDSLow())|b;
+				Memoria.getInstancia().modificaRAM(vopA + Registros.getInstancia().getDSLow(), resultado & mask0);
+			}
+		this.seteaCC(resultado);
 	}
 	
-	public void xor(Memoria memoria, Registros reg, int topA, int topB, int vopA, int vopB){
-		int b = valor2(memoria,reg,topB,vopB),valor, copia = vopA, maskAccRegistro = accesoRegistro(copia>>4),resultado;
+	public void xor(int topA, int topB, int vopA, int vopB){
+		int b = valor2(vopB,vopB),valor, copia = vopA, maskAccRegistro = accesoRegistro(copia>>4),resultado;
 		if (topA == 1) {  	//Registro
-			if (esNegativo(reg.getReg(vopA & maskf),maskAccRegistro)) 
-				valor = reg.getReg(vopA & maskf) | ~maskAccRegistro;
+			if (esNegativo(Registros.getInstancia().getReg(vopA & maskf),maskAccRegistro)) 
+				valor = Registros.getInstancia().getReg(vopA & maskf) | ~maskAccRegistro;
 			else 
-				valor = reg.getReg(vopA & maskf) & maskAccRegistro;
+				valor = Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro;
 			resultado = valor ^ b;
-			reg.modificaReg(vopA & maskf, ((reg.getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro)) & mask0);
+			Registros.getInstancia().modificaReg(vopA & maskf, ((Registros.getInstancia().getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro)) & mask0);
 		}
-		else{
-			resultado = memoria.getValorRAM(vopA + reg.getDS())^ b;
-			memoria.modificaRAM(vopA + reg.getDS(), resultado & mask0);
-		}
-		this.seteaCC(reg, resultado);
+		else
+			if (topA == 3) {					//Indirecto
+				resultado = Memoria.getInstancia().getValorRAM(validarSegmento(vopA)) ^ b;
+				Memoria.getInstancia().modificaRAM(validarSegmento(vopA),resultado & mask0);
+			}
+			else{
+				resultado = Memoria.getInstancia().getValorRAM(vopA + Registros.getInstancia().getDSLow())^ b;
+				Memoria.getInstancia().modificaRAM(vopA + Registros.getInstancia().getDSLow(), resultado & mask0);
+			}
+		this.seteaCC(resultado);
 	}
 	
-	public void shl(Memoria memoria, Registros reg, int topA, int topB, int vopA, int vopB){
-		int b = valor2(memoria,reg,topB,vopB),valor, copia = vopA, maskAccRegistro = accesoRegistro(copia>>4),resultado;
+	public void shl(int topA, int topB, int vopA, int vopB){
+		int b = valor2(topB,vopB),valor, copia = vopA, maskAccRegistro = accesoRegistro(copia>>4),resultado;
 		if (topA == 1) {  	//Registro
-			if (esNegativo(reg.getReg(vopA & maskf),maskAccRegistro)) 
-				valor = reg.getReg(vopA & maskf) | ~maskAccRegistro;
+			if (esNegativo(Registros.getInstancia().getReg(vopA & maskf),maskAccRegistro)) 
+				valor = Registros.getInstancia().getReg(vopA & maskf) | ~maskAccRegistro;
 			else 
-				valor = reg.getReg(vopA & maskf) & maskAccRegistro;
+				valor = Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro;
 			resultado = valor << b;
-			reg.modificaReg(vopA & maskf, ((reg.getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro)) & mask0);
+			Registros.getInstancia().modificaReg(vopA & maskf, ((Registros.getInstancia().getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro)) & mask0);
 		}
-		else{
-			resultado = memoria.getValorRAM(vopA + reg.getDS())<< b;
-			memoria.modificaRAM(vopA + reg.getDS(), resultado & mask0);
-		}
-		this.seteaCC(reg, resultado);
+		else
+			if (topA == 3) {					//Indirecto
+				resultado = Memoria.getInstancia().getValorRAM(validarSegmento(vopA)) << b ;
+				Memoria.getInstancia().modificaRAM(validarSegmento(vopA),resultado & mask0);
+			}
+			else{
+				resultado = Memoria.getInstancia().getValorRAM(vopA + Registros.getInstancia().getDSLow())<< b;
+				Memoria.getInstancia().modificaRAM(vopA + Registros.getInstancia().getDSLow(), resultado & mask0);
+			}
+		this.seteaCC(resultado);
 	}
 	
-	public void shr(Memoria memoria, Registros reg, int topA, int topB, int vopA, int vopB){
-		int b = valor2(memoria,reg,topB,vopB),valor, copia = vopA, maskAccRegistro = accesoRegistro(copia>>4),resultado;
+	public void shr(int topA, int topB, int vopA, int vopB){
+		int b = valor2(topB,vopB),valor, copia = vopA, maskAccRegistro = accesoRegistro(copia>>4),resultado;
 		if (topA == 1) {  	//Registro
-			if (esNegativo(reg.getReg(vopA & maskf),maskAccRegistro)) 
-				valor = reg.getReg(vopA & maskf) | ~maskAccRegistro;
+			if (esNegativo(Registros.getInstancia().getReg(vopA & maskf),maskAccRegistro)) 
+				valor = Registros.getInstancia().getReg(vopA & maskf) | ~maskAccRegistro;
 			else 
-				valor = reg.getReg(vopA & maskf) & maskAccRegistro;
+				valor = Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro;
 			resultado = valor >> b;
-			reg.modificaReg(vopA & maskf, ((reg.getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro) & mask0));
+			Registros.getInstancia().modificaReg(vopA & maskf, ((Registros.getInstancia().getReg(vopA & maskf) & ~maskAccRegistro) | ((resultado) & maskAccRegistro) & mask0));
 		}
-		else{
-			resultado=memoria.getValorRAM(vopA + reg.getDS()) >> b;
-			memoria.modificaRAM(vopA + reg.getDS(), resultado & mask0);
-		}
-		this.seteaCC(reg, resultado);
+		else
+			if (topA == 3) {					//Indirecto
+				resultado = Memoria.getInstancia().getValorRAM(validarSegmento(vopA)) >> b;
+				Memoria.getInstancia().modificaRAM(validarSegmento(vopA),resultado & mask0);
+			}
+			else{
+				resultado=Memoria.getInstancia().getValorRAM(vopA + Registros.getInstancia().getDSLow()) >> b;
+				Memoria.getInstancia().modificaRAM(vopA + Registros.getInstancia().getDSLow(), resultado & mask0);
+			}
+		this.seteaCC(resultado);
 	}
 	
-	public void sys (Memoria memoria,Registros reg,int vopA) throws InterruptedException, IOException {
-		String cad=null;
-		char w;
-		boolean prompt = true, saltoLinea = true, caracter = false;
-		int a,comienzo, cantidad,salida,cont,cod,auxInt;
-		String aux;
-		Scanner leer = new Scanner(System.in);
-		comienzo = reg.getEDX();
-		cantidad = reg.getCX();
-		if ((vopA & 0xF) == 0x1) {  //lectura
-			if (reg.getAX()>>11 == 1) 
-				prompt = false;
-			if (((reg.getAX()>>8) & 0X00000003) == 1) {
-				saltoLinea = false;	
-			}
-			switch (reg.getAX() &  maskf ) {
-					case 8 : cad = "%X "; break;
-					case 4 : cad = "%o "; break;
-					case 1 : cad = "%d "; break;
-			}
-			if (!saltoLinea) {
-				if (prompt)
-					System.out.format("[%04d]",comienzo);
-				aux = leer.nextLine();
-				cont = 0;
-				for (a = comienzo;a<(comienzo + cantidad);a++) {    //pasar octal o hexa
-					memoria.modificaRAM(a+reg.getDS(),aux.charAt(cont));
-					cont++;
-				}
-			}	
-			else {
-				for (a = comienzo;a<(comienzo+cantidad);a++) {		
-					if (prompt)
-						System.out.format("[%04d]",a);
-					auxInt = leer.nextInt();
-					memoria.modificaRAM(a+reg.getDS(), auxInt);
-					
-				}
-			}
+	public void sys (int vopA) throws InterruptedException, IOException {
+		switch (vopA & 0xF) {
+			case 1: lectura();break;
+			case 2: escritura();break;
+			case 3: lecturaString();break;
+			case 4: escrituraString();break;
+			case 7: clearScreen();break;
+			case 15: breakpoints(vopA); break;
 		}
-		else { 			//escritura
-			if ((vopA & 0xF) == 0x2) {
-				if ((reg.getAX() & 0x00000800) == 0x00000800)
-					prompt = false;
-				if (((reg.getAX()>>8) & 0X00000100) == 0X00000100)
-					saltoLinea = false;
-				for (a = comienzo;a<(comienzo+cantidad);a++) {
-					if (prompt)
-						System.out.format("[%04d] ",a);		
-					if (((reg.getAX() & 0x0000010) ==  0X00000010)){
-						salida = (char)memoria.getValorRAM(a +reg.getDS())& 0X000000FF;
-						if (((salida>=0) && (salida<=31)) || (salida ==127)) 
-							salida =(char)46;
-						else
-							salida=(char)memoria.getValorRAM(a + reg.getDS());
-						System.out.format("'%c ",salida);
-					}
-					salida=memoria.getValorRAM(a + reg.getDS());
-					if (((reg.getAX()& 0x0000008) ==  0X00000008))
-						System.out.format("H%X ",salida);
-					if (((reg.getAX()& 0x0000004) ==  0X00000004))  
-						System.out.format("@%o ",salida);
-					if (((reg.getAX()& 0x0000001) ==  0X00000001)) 
-						System.out.format("%d ",salida);;		
-					if (saltoLinea)
-						System.out.format("\n");
-				
-				}
-				
-			}
-			else {    					//breakpoint
-				if ((vopA & 0xF) == 0XF) {
-					if (getParametrod()) {
-						int auxiliar,start,end,ip = reg.getReg(5);
-						if (ip>=5) {
-							start = ip - 5;
-							end = ip + 5;
-						}
-						else {
-							start = 0;
-							end = 9;
-						}
-						System.out.print("\nCODIGO: \n");
-						for (auxiliar = start;auxiliar<end;auxiliar++) {
-							if (auxiliar + 1 == ip)
-								System.out.print(">");
-							else
-								System.out.print(" ");
-							System.out.format ("[%04d]: %08X  %d: ",auxiliar,memoria.getValorRAM(auxiliar),(auxiliar-start+1));
-							muestraInstruccion(memoria.getValorRAM(auxiliar));
-							System.out.print("     ");
-							muestraOperandos(memoria.getValorRAM(auxiliar));
-							System.out.print("\n");
-						}
-						System.out.print("\nREGISTROS: \n");
-						reg.getReg(0);
-						System.out.format("DS  = %d |",reg.getReg(0));
-						//System.out.format("    = %d |",reg.getReg(1));
-						//System.out.format("    = %d |",reg.getReg(2));
-						//System.out.format("    = %d |\n",reg.getReg(3));
-						//System.out.format("    = d |",reg.getReg(4));
-						System.out.format("IP  = %d |",reg.getReg(5));
-						//System.out.format("    = %d |",reg.getReg(6));
-						//System.out.format("    = %d |\n",reg.getReg(7));
-						System.out.format("CC  = %d |",reg.getReg(8));
-						System.out.format("AC  = %d |",reg.getReg(9));
-						System.out.format("EAX = %d |",reg.getReg(10));
-						System.out.format("EBX = %d |\n",reg.getReg(11));
-						System.out.format("ECX = %d |",reg.getReg(12));
-						System.out.format("EDX = %d |",reg.getReg(13));
-						System.out.format("EEX = %d |",reg.getReg(14));
-						System.out.format("EFX = %d |\n",reg.getReg(15));
-					}
-					if (getParametrob()) {
-						System.out.format("[%04d] cmd: ",reg.getReg(5)-1);
-						aux = leer.nextLine();
-						cod = codEntradaCmd(aux);
-						if ( cod == 1)
-							MaquinaVirtual.setP(false);
-						else
-							if (cod == 2)
-								MaquinaVirtual.setP(true);
-							else {
-								if (cod == 3) {
-									int i = Integer.parseInt(aux);
-									
-									System.out.format("[%04d] %08X  %d \n",i,memoria.getValorRAM(i),memoria.getValorRAM(i));
-								}
-								else 
-									if (cod == 4) {  
-										String op1 = primeraDireccion(aux),op2 = segundaDireccion(aux);
-										int i = Integer.parseInt(op1),j = Integer.parseInt(op2);
-										for (int t=i;t<=j;t++) 
-											System.out.format("[%04d] %08X  %d \n",t,memoria.getValorRAM(t),memoria.getValorRAM(t));
-									}
-									else 
-										if (cod == 5){}
-								}
-							}
-						
-					}
-					if (getParametroc() && (vopA >> 28) != 1) {   
-						try {
-						new ProcessBuilder("cmd","/c","cls").inheritIO().start().waitFor();
-						}catch (Exception e) {
-							
-						}
-					}
-				}
-			}
+	}
+	
+public void lectura(){
+String aux;
+boolean prompt = true, saltoLinea = true;
+int a,comienzo, cantidad,cont,auxInt;
+comienzo = Registros.getInstancia().getEDX();
+cantidad = Registros.getInstancia().getCX();
+Scanner leer = new Scanner(System.in);
+	if (Registros.getInstancia().getAX()>>11 == 1) 
+		prompt = false;
+	if (((Registros.getInstancia().getAX()>>8) & 0X00000003) == 1) 
+		saltoLinea = false;	
+	if (!saltoLinea) {
+		if (prompt)
+			System.out.format("[%04d]",comienzo);
+		aux = leer.nextLine();
+		cont = 0;
+		for (a = comienzo;a<(comienzo + cantidad);a++) {    //pasar octal o hexa
+			Memoria.getInstancia().modificaRAM(a+Registros.getInstancia().getDSLow(),aux.charAt(cont));
+			cont++;
 		}
-		
+	}	
+	else {
+		for (a = comienzo;a<(comienzo+cantidad);a++) {		
+			if (prompt)
+				System.out.format("[%04d]",a);
+				auxInt = leer.nextInt();
+				Memoria.getInstancia().modificaRAM(a+Registros.getInstancia().getDSLow(), auxInt);		
+		}
+	}
+	leer.close();
+}
 	
+public void escritura(){
+	boolean prompt = true, saltoLinea = true;
+	int a,comienzo, cantidad,salida;
+	comienzo = Registros.getInstancia().getEDX();
+	cantidad = Registros.getInstancia().getCX();
+		if ((Registros.getInstancia().getAX() & 0x00000800) == 0x00000800)
+			prompt = false;
+		if (((Registros.getInstancia().getAX()>>8) & 0X00000100) == 0X00000100)
+			saltoLinea = false;
+		for (a = comienzo;a<(comienzo+cantidad);a++) {
+			if (prompt)
+				System.out.format("[%04d] ",a);		
+			if (((Registros.getInstancia().getAX() & 0x0000010) ==  0X00000010)){
+				salida = (char)Memoria.getInstancia().getValorRAM(a +Registros.getInstancia().getDSLow())& 0X000000FF;
+				if (((salida>=0) && (salida<=31)) || (salida ==127)) 
+					salida =(char)46;
+				else
+					salida=(char)Memoria.getInstancia().getValorRAM(a + Registros.getInstancia().getDSLow());
+				System.out.format("'%c ",salida);
+			}
+			salida=Memoria.getInstancia().getValorRAM(a + Registros.getInstancia().getDSLow());
+			if (((Registros.getInstancia().getAX()& 0x0000008) ==  0X00000008))
+				System.out.format("H%X ",salida);
+			if (((Registros.getInstancia().getAX()& 0x0000004) ==  0X00000004))  
+				System.out.format("@%o ",salida);
+			if (((Registros.getInstancia().getAX()& 0x0000001) ==  0X00000001)) 
+				System.out.format("%d ",salida);;		
+			if (saltoLinea)
+				System.out.format("\n");
+		}
+}
 	
-	public void jmp (Memoria memoria,Registros reg,int topA,int vopA) {
+public void breakpoints(int vopA) {
+	if (getParametrod()) breakParametroC();
+	if (getParametrob()) breakParametroB();		
+	if (getParametroc() && (vopA >> 28) != 1) clearScreen();
+}
+
+public void breakParametroC(){
+	int auxiliar,start,end,ip = Registros.getInstancia().getReg(5);
+	if (ip>=5) {
+		start = ip - 5;
+		end = ip + 5;
+	}
+	else {
+		start = 0;
+		end = 9;
+	}
+	System.out.print("\nCODIGO: \n");
+	for (auxiliar = start;auxiliar<end;auxiliar++) {
+		if (auxiliar + 1 == ip)
+			System.out.print(">");
+		else
+			System.out.print(" ");
+		System.out.format ("[%04d]: %08X  %d: ",auxiliar,Memoria.getInstancia().getValorRAM(auxiliar),(auxiliar-start+1));
+		muestraInstruccion(Memoria.getInstancia().getValorRAM(auxiliar));
+		System.out.print("     ");
+		muestraOperandos(Memoria.getInstancia().getValorRAM(auxiliar));
+		System.out.print("\n");
+	}
+	System.out.print("\nREGISTROS: \n");
+	Registros.getInstancia().getReg(0);
+	System.out.format("DS  = %d |",Registros.getInstancia().getReg(0));
+	System.out.format("SS  = %d |",Registros.getInstancia().getReg(1));
+	System.out.format("ES  = %d |",Registros.getInstancia().getReg(2));
+	System.out.format("CS  = %d |\n",Registros.getInstancia().getReg(3));
+	System.out.format("HP  = %d |",Registros.getInstancia().getReg(4));
+	System.out.format("IP  = %d |",Registros.getInstancia().getReg(5));
+	System.out.format("SP  = %d |",Registros.getInstancia().getReg(6));
+	System.out.format("BP  = %d |\n",Registros.getInstancia().getReg(7));
+	System.out.format("CC  = %d |",Registros.getInstancia().getReg(8));
+	System.out.format("AC  = %d |",Registros.getInstancia().getReg(9));
+	System.out.format("EAX = %d |",Registros.getInstancia().getReg(10));
+	System.out.format("EBX = %d |\n",Registros.getInstancia().getReg(11));
+	System.out.format("ECX = %d |",Registros.getInstancia().getReg(12));
+	System.out.format("EDX = %d |",Registros.getInstancia().getReg(13));
+	System.out.format("EEX = %d |",Registros.getInstancia().getReg(14));
+	System.out.format("EFX = %d |\n",Registros.getInstancia().getReg(15));
+}
+
+public void breakParametroB(){
+
+int cod;
+String aux;
+Scanner leer = new Scanner(System.in);
+	System.out.format("[%04d] cmd: ",Registros.getInstancia().getReg(5)-1);
+	aux = leer.nextLine();
+	cod = codEntradaCmd(aux);
+	if ( cod == 1)
+		MaquinaVirtual.setP(false);
+	else
+		if (cod == 2)
+			MaquinaVirtual.setP(true);
+		else {
+			if (cod == 3) {
+				int i = Integer.parseInt(aux);
+				System.out.format("[%04d] %08X  %d \n",i,Memoria.getInstancia().getValorRAM(i),Memoria.getInstancia().getValorRAM(i));
+			}
+			else 
+				if (cod == 4) {  
+					String op1 = primeraDireccion(aux),op2 = segundaDireccion(aux);
+					int i = Integer.parseInt(op1),j = Integer.parseInt(op2);
+					for (int t=i;t<=j;t++) 
+						System.out.format("[%04d] %08X  %d \n",t,Memoria.getInstancia().getValorRAM(t),Memoria.getInstancia().getValorRAM(t));
+				}
+				else 
+					if (cod == 5){}
+		}
+	leer.close();
+}
+
+
+public void clearScreen () {
+	try {
+		new ProcessBuilder("cmd","/c","cls").inheritIO().start().waitFor();
+	}catch (Exception e) {}
+}
+
+	public void jmp (int topA,int vopA) {
 		int valor;
 		int aRegistroA = (vopA>>4);
 		int maskAccRegistro = accesoRegistro(aRegistroA);
 		if (topA == 1 ) {
 			if ( aRegistroA == 2) 
-				valor = ((reg.getReg(vopA & maskf) & maskAccRegistro)>>8);
+				valor = ((Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro)>>8);
 			else
-				valor = (reg.getReg(vopA & maskf) & maskAccRegistro);
+				valor = (Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro);
 		}
 		else {
 			if (topA == 2 )    //directo 
-				valor = memoria.getValorRAM(vopA);
+				valor = Memoria.getInstancia().getValorRAM(vopA);
 			else
-				valor = vopA;
+				if (topA == 3) 					//Indirecto
+					valor = Memoria.getInstancia().getValorRAM(validarSegmento(vopA));
+				else
+					valor = vopA;
 		}
-		reg.setIP(valor);
+		Registros.getInstancia().setIP(valor);
 	}
 	
-	public void jz (Memoria memoria,Registros reg,int topA,int vopA) { 
+	public void jz (int topA,int vopA) { 
 		int valor;
 		int aRegistroA = (vopA>>4);
 		int maskAccRegistro = accesoRegistro(aRegistroA);
-		if (reg.ceroCC() == 1) {
+		if (Registros.getInstancia().ceroCC() == 1) {
 			if (topA == 1 ) {
 				if ( aRegistroA == 2) 
-					valor = ((reg.getReg(vopA & maskf) & maskAccRegistro)>>8);
+					valor = ((Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro)>>8);
 				else
-					valor = (reg.getReg(vopA & maskf) & maskAccRegistro);
+					valor = (Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro);
 			}
 			else {
 				if (topA == 2 )    //directo 
-					valor = memoria.getValorRAM(vopA);
+					valor = Memoria.getInstancia().getValorRAM(vopA);
 				else
-					valor = vopA;
+					if (topA == 3) 					//Indirecto
+						valor = Memoria.getInstancia().getValorRAM(validarSegmento(vopA));
+					else
+						valor = vopA;
 			}
-			reg.setIP(valor);
+			Registros.getInstancia().setIP(valor);
 		}
 	}
 	
-	public void jp (Memoria memoria,Registros reg,int topA,int vopA) { 
+	public void jp (int topA,int vopA) { 
 		int valor;
 		int aRegistroA = (vopA>>4);
 		int maskAccRegistro = accesoRegistro(aRegistroA);
-		if (reg.signoCC() == 0) {
+		if (Registros.getInstancia().signoCC() == 0) {
 			if (topA == 1 ) {
 				if ( aRegistroA == 2) 
-					valor = ((reg.getReg(vopA & maskf) & maskAccRegistro)>>8);
+					valor = ((Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro)>>8);
 				else
-					valor = (reg.getReg(vopA & maskf) & maskAccRegistro);
+					valor = (Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro);
 			}
 			else {
 				if (topA == 2 )    //directo 
-					valor = memoria.getValorRAM(vopA);
+					valor = Memoria.getInstancia().getValorRAM(vopA);
 				else
-					valor = vopA;
+					if (topA == 3) 					//Indirecto
+						valor = Memoria.getInstancia().getValorRAM(validarSegmento(vopA));
+					else
+						valor = vopA;
 			}
-			reg.setIP(valor);
+			Registros.getInstancia().setIP(valor);
 		}
 	}
 	
-	public void jn (Memoria memoria,Registros reg,int topA,int vopA) { 
+	public void jn (int topA,int vopA) { 
 		int valor;
 		int aRegistroA = (vopA>>4);
 		int maskAccRegistro = accesoRegistro(aRegistroA);
-		if (reg.signoCC() == 1) {
+		if (Registros.getInstancia().signoCC() == 1) {
 			if (topA == 1 ) {
 				if ( aRegistroA == 2) 
-					valor = ((reg.getReg(vopA & maskf) & maskAccRegistro)>>8);
+					valor = ((Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro)>>8);
 				else
-					valor = (reg.getReg(vopA & maskf) & maskAccRegistro);
+					valor = (Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro);
 			}
 			else {
 				if (topA == 2 )    //directo 
-					valor = memoria.getValorRAM(vopA);
+					valor = Memoria.getInstancia().getValorRAM(vopA);
 				else
-					valor = vopA;
+					if (topA == 3) 					//Indirecto
+						valor = Memoria.getInstancia().getValorRAM(validarSegmento(vopA));
+					else
+						valor = vopA;
 			}
-			reg.setIP(valor);
+			Registros.getInstancia().setIP(valor);
 		}
 	}
 	
-	public void jnn (Memoria memoria,Registros reg,int topA,int vopA) { 
+	public void jnn (int topA,int vopA) { 
 		int valor;
 		int aRegistroA = (vopA>>4);
 		int maskAccRegistro = accesoRegistro(aRegistroA);
-		if (reg.signoCC() == 0 || reg.ceroCC()==1) {
+		if (Registros.getInstancia().signoCC() == 0 || Registros.getInstancia().ceroCC()==1) {
 			if (topA == 1 ) {
 				if ( aRegistroA == 2) 
-					valor = ((reg.getReg(vopA & maskf) & maskAccRegistro)>>8);
+					valor = ((Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro)>>8);
 				else
-					valor = (reg.getReg(vopA & maskf) & maskAccRegistro);
+					valor = (Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro);
 			}
 			else {
 				if (topA == 2 )    //directo 
-					valor = memoria.getValorRAM(vopA);
+					valor = Memoria.getInstancia().getValorRAM(vopA);
 				else
-					valor = vopA;
+					if (topA == 3) 					//Indirecto
+						valor = Memoria.getInstancia().getValorRAM(validarSegmento(vopA));
+					else
+						valor = vopA;
 			}
-			reg.setIP(valor);
+			Registros.getInstancia().setIP(valor);
 		}
 	}
 	
-	public void jnz (Memoria memoria,Registros reg,int topA,int vopA) { 
+	public void jnz (int topA,int vopA) { 
 		int valor;
 		int aRegistroA = (vopA>>4);
 		int maskAccRegistro = accesoRegistro(aRegistroA);
-		if (reg.ceroCC() == 0) {
+		if (Registros.getInstancia().ceroCC() == 0) {
 			if (topA == 1 ) {
 				if ( aRegistroA == 2) 
-					valor = ((reg.getReg(vopA & maskf) & maskAccRegistro)>>8);
+					valor = ((Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro)>>8);
 				else
-					valor = (reg.getReg(vopA & maskf) & maskAccRegistro);
+					valor = (Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro);
 			}
 			else {
 				if (topA == 2 )    //directo 
-					valor = memoria.getValorRAM(vopA);
+					valor = Memoria.getInstancia().getValorRAM(vopA);
 				else
-					valor = vopA;
+					if (topA == 3) 					//Indirecto
+						valor = Memoria.getInstancia().getValorRAM(validarSegmento(vopA));
+					else
+						valor = vopA;
 			}
-			reg.setIP(valor);
+			Registros.getInstancia().setIP(valor);
 		}
 	}	
 	
-	public void jnp (Memoria memoria,Registros reg,int topA,int vopA) { 
+	public void jnp (int topA,int vopA) { 
 		int valor;
 		int aRegistroA = (vopA>>4);
 		int maskAccRegistro = accesoRegistro(aRegistroA);
-		if (reg.signoCC() == 1 || reg.ceroCC() == 1) {
+		if (Registros.getInstancia().signoCC() == 1 || Registros.getInstancia().ceroCC() == 1) {
 			if (topA == 1 ) {
 				if ( aRegistroA == 2) 
-					valor = ((reg.getReg(vopA & maskf) & maskAccRegistro)>>8);
+					valor = ((Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro)>>8);
 				else
-					valor = (reg.getReg(vopA & maskf) & maskAccRegistro);
+					valor = (Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro);
 			}
 			else {
 				if (topA == 2 )    //directo 
-					valor = memoria.getValorRAM(vopA);
+					valor = Memoria.getInstancia().getValorRAM(vopA);
 				else
-					valor = vopA;
+					if (topA == 3) 					//Indirecto
+						valor = Memoria.getInstancia().getValorRAM(validarSegmento(vopA));
+					else
+						valor = vopA;
 			}
-			reg.setIP(valor);
+			Registros.getInstancia().setIP(valor);
 		}
 	}
 
-	public void ldh (Memoria memoria,Registros reg,int topA,int vopA) {
+	public void ldh (int topA,int vopA) {
 		int valor;
 		int aRegistroA = (vopA>>4);
 		int maskAccRegistro = accesoRegistro(aRegistroA);
 			if (topA == 1 ) {
 				if ( aRegistroA == 2) 
-					valor = ((reg.getReg(vopA & maskf) & maskAccRegistro)>>8);
+					valor = ((Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro)>>8);
 				else
-					valor = (reg.getReg(vopA & maskf) & maskAccRegistro);
+					valor = (Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro);
 			}
 			else {
 				if (topA == 2 )    //directo
-					valor = memoria.getValorRAM(vopA);         //SOLO VOPA ?????
+					valor = Memoria.getInstancia().getValorRAM(vopA);         //SOLO VOPA ?????
 				else
-					valor = vopA;
+					if (topA == 3) 					//Indirecto
+						valor = Memoria.getInstancia().getValorRAM(validarSegmento(vopA));
+					else
+						valor = vopA;
 			}
-			reg.setAC(((valor & 0X0000FFFF)<<16)|((reg.getAC() & 0X0000FFFF)));
+			Registros.getInstancia().setAC(((valor & 0X0000FFFF)<<16)|((Registros.getInstancia().getAC() & 0X0000FFFF)));
 	}
 
-	public void ldl (Memoria memoria,Registros reg,int topA,int vopA) {
+	public void ldl (int topA,int vopA) {
 		int valor;
 		int aux = vopA;
 		int aRegistroA = (aux>>4);
 		int maskAccRegistro = accesoRegistro(aRegistroA);
 			if (topA == 1 ) {
 				if ( aRegistroA == 2) 
-					valor = ((reg.getReg(vopA & maskf) & maskAccRegistro)>>8);
+					valor = ((Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro)>>8);
 				else
-					valor = (reg.getReg(vopA & maskf) & maskAccRegistro);
+					valor = (Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro);
 			}
 			else {
 				if (topA == 2 )    //directo 
-					valor =memoria.getValorRAM(vopA + reg.getDS());
-
+					valor =Memoria.getInstancia().getValorRAM(vopA + Registros.getInstancia().getDS());
 				else
-					valor = vopA;
+					if (topA == 3) 					//Indirecto
+						valor = Memoria.getInstancia().getValorRAM(validarSegmento(vopA));
+					else
+						valor = vopA;
 			}
-			reg.setAC((valor & 0X0000FFFF)|(reg.getAC() & 0XFFFF0000));
+			Registros.getInstancia().setAC((valor & 0X0000FFFF)|(Registros.getInstancia().getAC() & 0XFFFF0000));
 	}
 	
-	public void not (Memoria memoria,Registros reg,int topA,int vopA) {
+	public void not (int topA,int vopA) {
 		int aux = vopA;
 		int aRegistroA = (aux>>4);
 		int maskAccRegistro = accesoRegistro(aRegistroA);
 			if (topA == 1 ) {
 				if ( aRegistroA == 2)
-					reg.modificaReg(vopA & maskf, ~((reg.getReg(vopA & maskf) & maskAccRegistro)>>8));
+					Registros.getInstancia().modificaReg(vopA & maskf, ~((Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro)>>8));
 				else
-					reg.modificaReg(vopA & maskf, ~(reg.getReg(vopA & maskf) & maskAccRegistro));
+					Registros.getInstancia().modificaReg(vopA & maskf, ~(Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro));
 			}
-			else  
-				memoria.modificaRAM(vopA + reg.getDS(),~ memoria.getValorRAM(vopA + reg.getDS()));
-			
+			else
+				if (topA == 3) 					//Indirecto
+					Memoria.getInstancia().modificaRAM(Memoria.getInstancia().getValorRAM(validarSegmento(vopA)), ~Memoria.getInstancia().getValorRAM(validarSegmento(vopA)));
+				else  
+					Memoria.getInstancia().modificaRAM(vopA + Registros.getInstancia().getDS(),~ Memoria.getInstancia().getValorRAM(vopA + Registros.getInstancia().getDS()));
 	}
 	
 	public void stop() {
 		System.exit(0);
 	}
 	
+// FUNCIONES A IMPLEMENTAR
+	//CON 2 OPERANDOS
 	
-public void ejecutaInstruccion(int a, Memoria memoria, Registros registros) throws InterruptedException, IOException {
+	public void smov(int topA, int topB, int vopA, int vopB){
+		int b =valor2(topB,vopB);
+		int cont=0;
+		System.out.println(vopA);
+		while (b > 0) {
+			if (topA == 2)          // Directo 
+				Memoria.getInstancia().modificaRAM(vopA+ cont + Registros.getInstancia().getDSLow(),b);
+			else
+				if (topA == 3) 					//Indirecto
+					Memoria.getInstancia().modificaRAM(validarSegmento(vopA),b);
+			cont++;
+			b = valor2(topB,vopB+cont);
+		}
+	}
+	
+	public void slen(int topA, int topB, int vopA, int vopB){
+		int b =valor2(topB,vopB), copia = vopA, accesoA = copia>>4;
+		int maskAccRegistro = accesoRegistro(accesoA);
+		int nuevovalor,numreg,cont=0;
+		while (b > 0) {
+			cont++;
+			b = valor2(topB,vopB+cont);
+		}
+		if (topA == 1) { //Registro
+			numreg=vopA & maskf;		
+			if (accesoA == 2) { //modifico valor registro (caso 3byte)		
+				nuevovalor=(Registros.getInstancia().getReg(numreg)&~maskAccRegistro)| (cont<<8 & maskAccRegistro);		
+			}
+			else 
+				nuevovalor=((Registros.getInstancia().getReg(vopA & maskf)& ~maskAccRegistro))| (cont & maskAccRegistro);
+			Registros.getInstancia().modificaReg(numreg, nuevovalor);
+		}
+		else{
+			if (topA == 2)          // Directo 
+				Memoria.getInstancia().modificaRAM(vopA + Registros.getInstancia().getDSLow(),cont);
+			else
+				if (topA == 3) 					//Indirecto
+					Memoria.getInstancia().modificaRAM(validarSegmento(vopA),cont);
+		}
+	}
+	
+public void scmp(int topA, int topB, int vopA, int vopB){
+int b=-1,cont=0,res = 0, aux=-1;
+	while ((res==0) && (b!=0) && (aux!=0)){
+		b = valor2(topB,vopB+cont);
+		if (topA == 2)         // Directo 
+			aux = Memoria.getInstancia().getValorRAM(vopA+ cont + Registros.getInstancia().getDSLow());
+		else 					//Indirecto
+			aux = Memoria.getInstancia().getValorRAM(validarSegmento(vopA+cont));
+		res = aux - b;
+		cont++;
+		if (res<0) {
+			Registros.getInstancia().setMenosSignificativoCC(0);
+			Registros.getInstancia().setMasSignificativoCC(1);
+		}
+		else 
+			if (res == 0) {
+				Registros.getInstancia().setMasSignificativoCC(0);
+				Registros.getInstancia().setMenosSignificativoCC(1);
+			}
+			else {
+				Registros.getInstancia().setMasSignificativoCC(0);
+				Registros.getInstancia().setMenosSignificativoCC(0);
+			}
+	} 
+}
+	
+	//CON 1 OPERANDO
+	
+public void push (int topA,int vopA) {
+	int valor=0;
+	int aRegistroA = (vopA>>4);
+	int maskAccRegistro = accesoRegistro(aRegistroA);
+		if ((Registros.getInstancia().getSP() & 0xffff) == 0) {
+			System.out.print("Stack Overflow");
+			stop();
+		}
+		else {
+			if (topA == 1 ) {
+				if ( aRegistroA == 2) 
+					valor = ((Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro)>>8);
+				else
+					valor = (Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro);
+			}
+			else {
+				if (topA == 2 )    //directo
+					valor = Memoria.getInstancia().getValorRAM(vopA);         
+				else
+					if (topA == 3) 					//Indirecto
+						valor = Memoria.getInstancia().getValorRAM(validarSegmento(vopA));
+					else
+						valor = vopA;
+			}
+		}
+		Registros.getInstancia().setSP(Registros.getInstancia().getSP()-1);
+		Memoria.getInstancia().modificaRAM(((Registros.getInstancia().getSP()&0XFFFF) + (Registros.getInstancia().getSS()&0xFFFF)), valor);
+}
+
+	public void pop (int topA,int vopA) {
+		int valor=0;
+		int aRegistroA = (vopA>>4);
+		int maskAccRegistro = accesoRegistro(aRegistroA);
+			if ((Registros.getInstancia().getSP() & 0xffff) == ((Registros.getInstancia().getSS()>>16)& 0xffff)) {
+				System.out.print("Stack Underflow");
+				stop();
+			}
+			else {
+				valor = Memoria.getInstancia().getValorRAM((Registros.getInstancia().getSP()&0xffff) + (Registros.getInstancia().getSS()&0xffff));
+				Registros.getInstancia().setSP(Registros.getInstancia().getSP()+1);
+				if (topA == 1 ) {
+					if ( aRegistroA == 2) 
+						Registros.getInstancia().modificaReg((vopA & maskf & maskAccRegistro)>>8,valor);
+					else
+						Registros.getInstancia().modificaReg((vopA & maskf) & maskAccRegistro,valor);
+				}
+				else {
+					if (topA == 2 )    //directo
+						Memoria.getInstancia().modificaRAM(vopA, valor);         
+					else
+						if (topA == 3) 					//Indirecto
+							Memoria.getInstancia().modificaRAM(validarSegmento(vopA),valor);
+				}
+			}
+	}
+	
+	public void call (int topA,int vopA) {
+		push(topA,Registros.getInstancia().getIP());
+		Registros.getInstancia().setIP(vopA);
+	}
+
+	public void rnd (int topA,int vopA) {
+		int valor;
+		int aRegistroA = (vopA>>4);
+		int maskAccRegistro = accesoRegistro(aRegistroA);
+			if (topA == 1 ) {
+				if ( aRegistroA == 2) 
+					valor = ((Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro)>>8);
+				else
+					valor = (Registros.getInstancia().getReg(vopA & maskf) & maskAccRegistro);
+			}
+			else {
+				if (topA == 2 )    //directo
+					valor = Memoria.getInstancia().getValorRAM(vopA);        
+				else
+					if (topA == 3) 					//Indirecto
+						valor = Memoria.getInstancia().getValorRAM(validarSegmento(vopA));
+					else
+						valor = vopA;
+			}
+			Registros.getInstancia().setAC((int) Math.round(valor*Math.random()));
+}
+	
+	// SIN OPERANDOS
+	
+	public void ret () {
+		pop(1,5);
+	}
+	
+	//SYSTEM CALL
+	
+	public void lecturaString(){
+		int pos=  Registros.getInstancia().getEDX() & 0xffff + inicioSegmento(Registros.getInstancia().getEDX()), q=0;
+		char valor;
+		boolean promt = ((Registros.getInstancia().getEAX()>>11)==0);
+		String aux;
+		Scanner leer = new Scanner(System.in);
+		if (promt) 
+			System.out.format("[%04d] ",pos);
+		aux = leer.nextLine();
+		while (q<Registros.getInstancia().getCX()-1 && q<aux.length()) {
+			valor = aux.charAt(q);
+			Memoria.getInstancia().modificaRAM(pos++,(int)valor);
+			q++;
+		}
+		valor = '\0';
+		Memoria.getInstancia().modificaRAM(pos, valor);
+		leer.close();
+	}
+
+	public void escrituraString(){
+		int pos=  Registros.getInstancia().getEDX() & 0xffff + inicioSegmento(Registros.getInstancia().getEDX());
+		boolean promt = ((Registros.getInstancia().getEAX()>>11)==0), endline = ((Registros.getInstancia().getEAX()>>8)==0);
+		while (Memoria.getInstancia().getValorRAM(pos) != '\0') {
+			if (promt) 
+				System.out.format("[%04d] ",pos);
+			System.out.format("%c\n",Memoria.getInstancia().getValorRAM(pos++));
+		}
+		if (endline)
+			System.out.println("\n");
+	}
+	
+	
+public void ejecutaInstruccion(int a) throws InterruptedException, IOException {
 	int vopA,vopB,topA,topB;
 	if ((a>>28 & maskf)!= maskf){
 		vopA = (a>>12) & 0x00000fff;
@@ -642,57 +956,68 @@ public void ejecutaInstruccion(int a, Memoria memoria, Registros registros) thro
 		topA = (a & 0X0C000000)>>26;
 		topB = (a & 0X03000000)>>24;  
         switch (a>>28 & maskf){
-            case 0: mov(memoria,registros,topA, topB, vopA, vopB); break;
-            case 1: add(memoria,registros,topA, topB, vopA, vopB);break;
-            case 2: sub(memoria,registros,topA, topB, vopA, vopB);break;
-            case 3: swap(memoria,registros,topA, topB, vopA, vopB);break;
-            case 4: mul(memoria,registros,topA, topB, vopA, vopB);break;
-            case 5: div(memoria,registros,topA, topB, vopA, vopB);break;
-            case 6: cmp(memoria,registros,topA, topB, vopA, vopB);break;
-            case 7: shl(memoria,registros,topA, topB, vopA, vopB);break;
-            case 8: shr(memoria,registros,topA, topB, vopA, vopB);break;
-            case 9:and(memoria,registros,topA, topB, vopA, vopB);break;
-            case 10:or(memoria,registros,topA, topB, vopA, vopB);break;
-            case 11:xor(memoria,registros,topA, topB, vopA, vopB);break;
+            case 0: mov(topA, topB, vopA, vopB); break;
+            case 1: add(topA, topB, vopA, vopB);break;
+            case 2: sub(topA, topB, vopA, vopB);break;
+            case 3: swap(topA, topB, vopA, vopB);break;
+            case 4: mul(topA, topB, vopA, vopB);break;
+            case 5: div(topA, topB, vopA, vopB);break;
+            case 6: cmp(topA, topB, vopA, vopB);break;
+            case 7: shl(topA, topB, vopA, vopB);break;
+            case 8: shr(topA, topB, vopA, vopB);break;
+            case 9:and(topA, topB, vopA, vopB);break;
+            case 10:or(topA, topB, vopA, vopB);break;
+            case 11:xor(topA, topB, vopA, vopB);break;
+            case 12:slen(topA, topB, vopA, vopB);break;
+            case 13:smov(topA, topB, vopA, vopB);break;
+            case 14:scmp(topA, topB, vopA, vopB);break;
         }
     }
     else{
         if (((a>>24 & maskf) == maskf) && ((a>>28 & maskf) == maskf)) {
-        	stop();
+        	if (a>>20 == 1)
+        		stop();
+        	else
+        		if (a>>20 == 0)
+        			ret();
         }
         else{
       	   topA = (a & 0X00C00000)>>22;
       	   vopA = a & 0X0000ffff;
             switch (a>>24 & maskf){
-                case 0:sys(memoria,registros,vopA);break;
-                case 1:jmp(memoria,registros,topA,vopA);break;
-                case 2:jz(memoria,registros,topA,vopA);break;
-                case 3:jp(memoria,registros,topA,vopA);break;
-                case 4:jn(memoria,registros,topA,vopA);break;
-                case 5:jnz(memoria,registros,topA,vopA);break;
-                case 6:jnp(memoria,registros,topA,vopA);break;
-                case 7:jnn(memoria,registros,topA,vopA);break;
-                case 8:ldl(memoria,registros,topA,vopA);break;
-                case 9:ldh(memoria,registros,topA,vopA);break;
-                case 11:not(memoria,registros,topA,vopA);break;
+                case 0:sys(vopA);break;
+                case 1:jmp(topA,vopA);break;
+                case 2:jz(topA,vopA);break;
+                case 3:jp(topA,vopA);break;
+                case 4:jn(topA,vopA);break;
+                case 5:jnz(topA,vopA);break;
+                case 6:jnp(topA,vopA);break;
+                case 7:jnn(topA,vopA);break;
+                case 8:ldl(topA,vopA);break;
+                case 9:ldh(topA,vopA);break;
+                case 10:rnd(topA,vopA);break;
+                case 11:not(topA,vopA);break;
+                case 12:push(topA,vopA);break;
+                case 13:pop(topA,vopA);break;
+                case 14:call(topA,vopA);break;
             }   
         }
     }
 }
 
-	public int valor2 (Memoria memoria,Registros reg, int topB,int vopB) {
-		int valor;
+	public int valor2 ( int topB,int vopB) {
+		int valor=0;
 		int copiaB = vopB;
 		if (topB == 1){      //Registro
 			int aRegistroB = (copiaB>>4);
 			int mask1 = accesoRegistro(aRegistroB);
 			if (aRegistroB == 2) {
-				valor = (reg.getReg(vopB & maskf) & mask1)>>8;
+				valor = (Registros.getInstancia().getReg(vopB & maskf) & mask1)>>8;
 				mask1 = mask1>>8;
 				valor = valor &  0x000000FF;
 			}
 			else
-				valor = reg.getReg(vopB & maskf) & mask1;
+				valor = Registros.getInstancia().getReg(vopB & maskf) & mask1;
 			
 			if (esNegativo(valor,mask1)) {
 				valor = valor | ~mask1;
@@ -700,19 +1025,60 @@ public void ejecutaInstruccion(int a, Memoria memoria, Registros registros) thro
 		}
 		else
 			if (topB == 2){ // Directo
-				valor=memoria.getValorRAM(vopB + reg.getDS()); //obtengo direccion de memoria
+				valor=Memoria.getInstancia().getValorRAM(vopB + Registros.getInstancia().getDSLow()); //obtengo direccion de memoria
 			}
 			else{
-				if (copiaB>>11 == 1) {
-					valor = vopB | 0xFFFFF000;
+				if (topB == 3) {  // Indirecto
+					valor = Memoria.getInstancia().getValorRAM(validarSegmento(vopB));	
+				}
+				else     // tipB = 0 valor inmediato
+					if (copiaB>>11 == 1) {
+						valor = vopB | 0xFFFFF000;
 				}
 				else
 				valor = vopB;
 			}
 		return valor;
 	}
-
 	
+public int validarSegmento(int vopB) {
+int valor = 0,maskff = 0x000000ff,aux,aux2,offset = (vopB>>4) & maskff;
+	if (esNegativo(offset,maskff)) 
+		offset = offset | ~maskff;
+	aux = Registros.getInstancia().getReg(vopB & maskf)+(offset);  //valor de registro + offset
+	aux2 = aux & 0xffff;
+	if((aux2 + inicioSegmento(aux))>= inicioSegmento(aux) && (aux2 + inicioSegmento(aux))<= finSegmento(aux)) {
+		valor = (aux2 + inicioSegmento(vopB)); 
+	}
+	else {
+		System.out.println("SEGMENTATION FAULT");
+		stop();
+	}
+	return valor;
+}
+	
+	public int inicioSegmento(int vop) {
+		int aux = 0;
+		switch ((vop>>15)& maskf) {
+			case 0: aux = Registros.getInstancia().getDS() & 0x0000ffff; break;
+			case 1: aux = Registros.getInstancia().getSS() & 0x0000ffff; break;
+			case 2: aux = Registros.getInstancia().getES() & 0x0000ffff; break;
+			case 3: aux = Registros.getInstancia().getCS() & 0x0000ffff; break;
+		}
+		return aux;
+	}
+	
+	public int finSegmento(int vop) {
+		int aux = 0;
+		switch ((vop>>16)& maskf) {
+			case 0: aux = (Registros.getInstancia().getDS() & 0x0000ffff) + ((Registros.getInstancia().getDS()>>16) & 0x0000ffff); break;
+			case 1: aux = (Registros.getInstancia().getSS() & 0x0000ffff) + ((Registros.getInstancia().getSS()>>16) & 0x0000ffff); break;
+			case 2: aux = (Registros.getInstancia().getES() & 0x0000ffff) + ((Registros.getInstancia().getES()>>16) & 0x0000ffff); break;
+			case 3: aux = (Registros.getInstancia().getCS() & 0x0000ffff) + ((Registros.getInstancia().getCS()>>16) & 0x0000ffff); break;
+		}
+		return aux;
+	}
+
 	int  accesoRegistro (int a) {
 		int mask=0;
 		switch (a) {
@@ -732,6 +1098,7 @@ public void ejecutaInstruccion(int a, Memoria memoria, Registros registros) thro
 		case 0x000000FF: aux = 7;break;
 		case 0x0000FF00: aux = 15;break;
 		case 0x0000FFFF: aux = 15;break;
+		case 0X00000FF0: aux = 11;break;
 		}
 		return aux; 
 	}
@@ -740,15 +1107,15 @@ public void ejecutaInstruccion(int a, Memoria memoria, Registros registros) thro
 		return (((valor >>(bitMasSignificativo(mask)))& 0x1) == 1);
 	}
 	
-	public void seteaCC (Registros reg,int resultado) {
+	public void seteaCC (int resultado) {
 		if (resultado == 0) 
-			reg.setMenosSignificativoCC(1);
+			Registros.getInstancia().setMenosSignificativoCC(1);
 		else 
-			reg.setMenosSignificativoCC(0);
+			Registros.getInstancia().setMenosSignificativoCC(0);
 		if (resultado < 0) 
-			reg.setMasSignificativoCC(1);
+			Registros.getInstancia().setMasSignificativoCC(1);
 		else
-			reg.setMasSignificativoCC(0);
+			Registros.getInstancia().setMasSignificativoCC(0);
 	}
 	
 	public void escribeRegistro(int a ) {
@@ -874,11 +1241,17 @@ public void ejecutaInstruccion(int a, Memoria memoria, Registros registros) thro
 	            case 9: System.out.print("AND");break;
 	            case 10: System.out.print("OR");break;
 	            case 11: System.out.print("XOR");break;
+	            case 12: System.out.print("SLEN");break;
+	            case 13: System.out.print("SMOV");break;
+	            case 14: System.out.print("SCMP");break;
 	        }
 	    }
 	    else{
-	        if (((a>>24 & maskf) == maskf) && ((a>>28 & maskf) == maskf)) 
-	        	System.out.print("STOP\n");
+	        if (((a>>24 & maskf) == maskf) && ((a>>28 & maskf) == maskf))
+	        	if (a>>20 == 1)
+	        		System.out.print("STOP\n");
+	        	else
+	        		System.out.print("RET\n");
 	        else{
 	      	   
 	            switch (a>>24 & maskf){
@@ -893,6 +1266,9 @@ public void ejecutaInstruccion(int a, Memoria memoria, Registros registros) thro
 	                case 8:System.out.print("LDL");break;
 	                case 9:System.out.print("LDH");break;
 	                case 11:System.out.print("NOT");break;
+	                case 12: System.out.print("PUSH");break;
+	                case 13: System.out.print("POP");break;
+	                case 14: System.out.print("CALL");break;
 	            }   
 	        }
 	    }
@@ -939,5 +1315,4 @@ public void ejecutaInstruccion(int a, Memoria memoria, Registros registros) thro
 				w++;
 		return cadena.substring(w+1,cadena.length());
 	}
-	
 }

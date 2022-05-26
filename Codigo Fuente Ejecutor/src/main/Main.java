@@ -39,7 +39,7 @@ public class Main {
 					CS = inst;
 				}
 			}
-
+			
 			maquinavirtual.setDS(CS);
 
 			for (i = 0; i < CS; i++) {					// carga instrucciones en la RAM

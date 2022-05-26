@@ -18,7 +18,7 @@ public class MaquinaVirtual {
 	}
 	
 	public void sys() throws InterruptedException, IOException {
-		this.alu.sys(memoria, registros, 0x1000000F);	// se fuerza el valor de un sys %F y el 1 es para evitar que se limpie la pantalla
+		this.alu.sys(0x1000000F);	// se fuerza el valor de un sys %F y el 1 es para evitar que se limpie la pantalla
 	}
 	
 	public static void setP(boolean p) {
@@ -27,8 +27,8 @@ public class MaquinaVirtual {
 	
 	public MaquinaVirtual() {
 	
-		this.memoria = new Memoria();
-		this.registros = new Registros();
+		this.memoria = Memoria.getInstancia();
+		this.registros = Registros.getInstancia();
 		this.alu = new ALU();
 	
 	}
@@ -54,7 +54,7 @@ public class MaquinaVirtual {
 	}
 	
 	public void ejecutaInstruccion(int instruccion) throws InterruptedException, IOException {
-		alu.ejecutaInstruccion(instruccion, this.memoria, this.registros);
+		alu.ejecutaInstruccion(instruccion);
 	}
 	
 	public void setDS(int DS) {
@@ -94,5 +94,4 @@ public class MaquinaVirtual {
 		return this.alu.esNegativo(numero,0xFF);
 	}
 	
-
 }
